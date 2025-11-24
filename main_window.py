@@ -52,7 +52,7 @@ def launch_gui():
 
             # Insert scan results into listbox
             if not hosts:
-                results_list.insert(tk.END, "No hosts found, there may be an error in the imput.")
+                results_list.insert(tk.END, "No ports found, there may be an error in the imput.")
             else:
                 for host in hosts:
                     results_list.insert(tk.END, host)

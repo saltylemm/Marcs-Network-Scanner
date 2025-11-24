@@ -1,4 +1,5 @@
 from scapy.all import *
+import socket
 
 
     
@@ -42,13 +43,12 @@ def get_active_ports(target_ip):
     if len(allHosts) == 0:
         return []
 
-    # Extract IPv4 addresses
     ipv4_addresses = []
     for host in allHosts:
-        if isinstance(host, tuple):              # (ip, mac)
-            ipv4_addresses.append(host[0])
-        elif isinstance(host, dict) and "ip" in host:
+        if isinstance(host, dict) and "ip" in host:
             ipv4_addresses.append(host["ip"])
+        elif isinstance(host, tuple):
+            ipv4_addresses.append(host[0])
         elif isinstance(host, str):
             ipv4_addresses.append(host)
 
@@ -67,22 +67,26 @@ def get_active_ports(target_ip):
 
     return results
 
-def grab_banner(ip, port, timeout=2):
-    syn = IP(dst=ip)/TCP(dport=port, flags="S", sport=RandShort())
-    syn_ack = sr1(syn, timeout=timeout, verbose=0)
+def grab_banner(ip, port, timeout=1):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        result = s.connect_ex((ip, port))
 
-    if syn_ack is None or syn_ack[TCP].flags != "SA":
+        if result == 0:
+            # Port is open — attempt to read banner
+            try:
+                banner = s.recv(1024).decode(errors="ignore")
+                if banner.strip():
+                    return banner.strip()
+            except:
+                pass
+
+            # No banner, but port is confirmed open
+            return "OPEN (no banner)"
+
+        s.close()
         return None
 
-    ack = IP(dst=ip)/TCP(dport=port, sport=syn_ack[TCP].dport,
-                         seq=syn_ack.ack, ack=syn_ack.seq + 1, flags="A")
-    send(ack, verbose=0)
-
-    probe = IP(dst=ip)/TCP(dport=port, sport=syn_ack[TCP].dport,
-                           seq=syn_ack.ack, ack=syn_ack.seq + 1)/b""
-    ans = sr1(probe, timeout=timeout, verbose=0)
-
-    if ans and ans.haslayer(Raw):
-        return ans[Raw].load.decode(errors="ignore")
-
-    return None
+    except Exception as e:
+        return None
